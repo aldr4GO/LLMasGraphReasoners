@@ -1,0 +1,8 @@
+# No third-party Python packages are required.
+# The implementation uses only the standard library.
+#
+# LKH (the solver binary) must be installed separately:
+#   http://webhotel4.ruc.dk/~keld/research/LKH-3/
+#
+# Optional: numpy for faster matrix operations if adapting the codebase.
+numpy>=1.24
