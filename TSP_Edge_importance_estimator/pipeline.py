@@ -8,12 +8,12 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import config
-from lkh_runner import solve_tsp
-from tsplib_io import write_tsplib, write_lkh_par, parse_lkh_tour
-from eval1 import compute_edge_importance
+import almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.config as config
+from almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.lkh_runner import solve_tsp
+from almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.tsplib_io import write_tsplib, write_lkh_par, parse_lkh_tour
+from almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.eval1 import compute_edge_importance
 
-from data_loader import load_single_route
+from almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.data_loader import load_single_route
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,7 +58,7 @@ def _solve_base(
         max_trials=config.LKH_MAX_TRIALS,
     )
 
-    from lkh_runner import run_lkh
+    from almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.lkh_runner import run_lkh
     run_lkh(par_file)
 
     route = parse_lkh_tour(tour_file)

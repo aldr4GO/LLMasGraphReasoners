@@ -9,8 +9,8 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, List, Tuple
 
-import config
-from lkh_runner import solve_tsp
+import almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.config as config
+from almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.lkh_runner import solve_tsp
 
 logger = logging.getLogger(__name__)
 

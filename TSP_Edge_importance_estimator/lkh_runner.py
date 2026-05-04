@@ -8,8 +8,8 @@ import time
 import uuid
 from typing import List, Tuple, Optional
 
-import config
-from tsplib_io import write_tsplib, write_lkh_par, parse_lkh_tour
+import almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.config as config
+from almrc.LLMasGraphReasoners.TSP_Edge_importance_estimator.tsplib_io import write_tsplib, write_lkh_par, parse_lkh_tour
 
 
 def run_lkh(par_file: str) -> None:
