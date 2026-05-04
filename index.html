@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Amazon Route Visualizer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Top bar ── */
+        header {
+            background: linear-gradient(90deg, #1a2332 0%, #12253a 100%);
+            border-bottom: 1px solid #21313f;
+            padding: 0 14px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            z-index: 1000;
+        }
+
+        header .logo {
+            font-size: 17px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #ff9900, #ffb347);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            white-space: nowrap;
+        }
+
+        header .divider {
+            width: 1px;
+            height: 28px;
+            background: #21313f;
+            flex-shrink: 0;
+        }
+
+        .loaders {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+
+        .loader-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .loader-group label {
+            cursor: pointer;
+            background: linear-gradient(135deg, #ff9900, #e68900);
+            color: #000;
+            font-weight: 600;
+            font-size: 11px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+            transition: opacity .15s;
+        }
+
+        .loader-group label.secondary {
+            background: linear-gradient(135deg, #3a7bd5, #2860b4);
+            color: #fff;
+        }
+
+        .loader-group label.tertiary {
+            background: linear-gradient(135deg, #2ecc71, #27a95f);
+            color: #fff;
+        }
+
+        .loader-group label:hover {
+            opacity: .85;
+        }
+
+        .loader-group input[type=file] {
+            display: none;
+        }
+
+        .loader-group .fname {
+            font-size: 10px;
+            color: #8b949e;
+            max-width: 110px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .loaded-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #2ecc71;
+            display: none;
+            flex-shrink: 0;
+        }
+
+        .loaded-dot.active {
+            display: inline-block;
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            margin-left: auto;
+            align-items: center;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #ff9900;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+
+        /* ── Main layout ── */
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: 290px;
+            flex-shrink: 0;
+            background: #161b22;
+            border-right: 1px solid #21313f;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 12px 14px 8px;
+            border-bottom: 1px solid #21313f;
+        }
+
+        .sidebar-header h2 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #c9d1d9;
+        }
+
+        .sidebar-header p {
+            font-size: 11px;
+            color: #8b949e;
+            margin-top: 2px;
+        }
+
+        .search-box {
+            padding: 8px 10px;
+            border-bottom: 1px solid #21313f;
+        }
+
+        .search-box input {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #21313f;
+            border-radius: 6px;
+            color: #e6edf3;
+            font-size: 12px;
+            padding: 5px 9px;
+            outline: none;
+            transition: border-color .15s;
+        }
+
+        .search-box input:focus {
+            border-color: #ff9900;
+        }
+
+        .search-box input::placeholder {
+            color: #484f58;
+        }
+
+        .route-list {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #21313f transparent;
+        }
+
+        .route-item {
+            padding: 9px 12px;
+            border-bottom: 1px solid #161b22;
+            cursor: pointer;
+            transition: background .12s;
+        }
+
+        .route-item:hover {
+            background: #1c2330;
+        }
+
+        .route-item.active {
+            background: #1f3548;
+            border-left: 3px solid #ff9900;
+        }
+
+        .route-item .route-id {
+            font-size: 11px;
+            font-weight: 600;
+            color: #e6edf3;
+            font-family: monospace;
+        }
+
+        .route-item .route-meta {
+            font-size: 10px;
+            color: #8b949e;
+            margin-top: 3px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 600;
+        }
+
+        .badge-stops {
+            background: #1f3548;
+            color: #58a6ff;
+        }
+
+        .badge-high {
+            background: #1a3a1a;
+            color: #69f0ae;
+        }
+
+        .badge-medium {
+            background: #3a2e0a;
+            color: #ffca28;
+        }
+
+        .badge-low {
+            background: #3a1010;
+            color: #ef5350;
+        }
+
+        /* ── Map area ── */
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #0d1117;
+        }
+
+        /* ── Controls ── */
+        .controls {
+            position: absolute;
+            top: 70px;
+            left: 304px;
+            z-index: 900;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            max-width: 360px;
+        }
+
+        .ctrl-btn {
+            background: rgba(22, 27, 34, .88);
+            backdrop-filter: blur(8px);
+            border: 1px solid #21313f;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 11px;
+            font-family: 'Inter', sans-serif;
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: background .15s, border-color .15s;
+            white-space: nowrap;
+        }
+
+        .ctrl-btn:hover {
+            background: #1c2330;
+            border-color: #ff9900;
+        }
+
+        .ctrl-btn.active {
+            background: #1f3548;
+            border-color: #ff9900;
+            color: #ff9900;
+        }
+
+        /* ── Legend ── */
+        .legend {
+            position: absolute;
+            top: 70px;
+            right: 14px;
+            z-index: 900;
+            background: rgba(22, 27, 34, .88);
+            backdrop-filter: blur(8px);
+            border: 1px solid #21313f;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 11px;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            color: #c9d1d9;
+            margin-bottom: 7px;
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 5px;
+            color: #8b949e;
+        }
+
+        .legend-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* ── Info panel ── */
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 14px;
+            z-index: 900;
+            background: rgba(22, 27, 34, .95);
+            backdrop-filter: blur(10px);
+            border: 1px solid #21313f;
+            border-radius: 10px;
+            padding: 12px 14px;
+            min-width: 220px;
+            max-width: 280px;
+            max-height: 55vh;
+            overflow-y: auto;
+            display: none;
+            scrollbar-width: thin;
+            scrollbar-color: #21313f transparent;
+        }
+
+        .info-panel.visible {
+            display: block;
+        }
+
+        .info-panel h3 {
+            font-size: 13px;
+            font-weight: 700;
+            color: #ff9900;
+            margin-bottom: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .info-row .k {
+            font-size: 11px;
+            color: #8b949e;
+        }
+
+        .info-row .v {
+            font-size: 11px;
+            color: #e6edf3;
+            font-weight: 500;
+            text-align: right;
+            max-width: 150px;
+            word-break: break-all;
+        }
+
+        .pkg-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #c9d1d9;
+            margin: 10px 0 5px;
+            border-top: 1px solid #21313f;
+            padding-top: 8px;
+        }
+
+        .pkg-card {
+            background: #0d1117;
+            border: 1px solid #21313f;
+            border-radius: 6px;
+            padding: 7px 9px;
+            margin-bottom: 6px;
+            font-size: 10px;
+        }
+
+        .pkg-card .pkg-id {
+            font-size: 9px;
+            color: #484f58;
+            font-family: monospace;
+            margin-bottom: 4px;
+        }
+
+        .scan-pill {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+
+        .scan-DELIVERED {
+            background: #1a3a1a;
+            color: #69f0ae;
+        }
+
+        .scan-ATTEMPTED {
+            background: #3a2e0a;
+            color: #ffca28;
+        }
+
+        .scan-REJECTED {
+            background: #3a1010;
+            color: #ef5350;
+        }
+
+        .scan-OTHER {
+            background: #1a2332;
+            color: #8b949e;
+        }
+
+        .pkg-detail {
+            color: #8b949e;
+        }
+
+        /* ── Analytics Panel ── */
+        .analytics-panel {
+            width: 0;
+            flex-shrink: 0;
+            background: #161b22;
+            border-left: 1px solid #21313f;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: width .3s ease;
+        }
+
+        .analytics-panel.open {
+            width: 340px;
+        }
+
+        .analytics-inner {
+            width: 340px;
+            padding: 14px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #21313f transparent;
+            flex: 1;
+        }
+
+        .analytics-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #21313f;
+        }
+
+        .analytics-header h2 {
+            font-size: 13px;
+            font-weight: 700;
+            color: #c9d1d9;
+        }
+
+        .analytics-close {
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 16px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .analytics-close:hover {
+            color: #e6edf3;
+            background: #21313f;
+        }
+
+        .route-info-block {
+            background: #0d1117;
+            border: 1px solid #21313f;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 14px;
+        }
+
+        .route-info-block .ri-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+
+        .route-info-block .ri-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .route-info-block .ri-k {
+            color: #8b949e;
+        }
+
+        .route-info-block .ri-v {
+            color: #e6edf3;
+            font-weight: 500;
+        }
+
+        .chart-section {
+            margin-bottom: 18px;
+        }
+
+        .chart-section h3 {
+            font-size: 11px;
+            font-weight: 600;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            margin-bottom: 8px;
+        }
+
+        .chart-wrap {
+            position: relative;
+            height: 160px;
+        }
+
+        .chart-wrap.tall {
+            height: 200px;
+        }
+
+        /* ── Drop overlay ── */
+        #drop-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 153, 0, .08);
+            border: 3px dashed #ff9900;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            font-size: 22px;
+            font-weight: 700;
+            color: #ff9900;
+            pointer-events: none;
+        }
+
+        body.dragging #drop-overlay {
+            display: flex;
+        }
+
+        /* ── Empty state ── */
+        #empty-state {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #484f58;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #empty-state svg {
+            width: 64px;
+            height: 64px;
+            opacity: .4;
+        }
+
+        #empty-state p {
+            font-size: 14px;
+        }
+
+        #empty-state small {
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="drop-overlay">Drop your JSON file here</div>
+
+    <header>
+        <span class="logo">🚚 Route Visualizer</span>
+        <div class="divider"></div>
+        <div class="loaders">
+            <!-- Loader 1: route data (new_route_data or route_data) -->
+            <div class="loader-group">
+                <label for="file-route">Route JSON</label>
+                <input type="file" id="file-route" accept=".json" />
+                <span class="loaded-dot" id="dot-route"></span>
+                <span class="fname" id="fname-route">No file</span>
+            </div>
+            <div class="divider"></div>
+            <!-- Loader 2: package_data -->
+            <div class="loader-group">
+                <label for="file-pkg" class="secondary">Package JSON</label>
+                <input type="file" id="file-pkg" accept=".json" />
+                <span class="loaded-dot" id="dot-pkg"></span>
+                <span class="fname" id="fname-pkg">Optional</span>
+            </div>
+            <div class="divider"></div>
+            <!-- Loader 3: actual_sequences -->
+            <div class="loader-group">
+                <label for="file-seq" class="tertiary">Sequences JSON</label>
+                <input type="file" id="file-seq" accept=".json" />
+                <span class="loaded-dot" id="dot-seq"></span>
+                <span class="fname" id="fname-seq">Optional</span>
+            </div>
+            <div class="divider"></div>
+            <!-- Loader 4: invalid_sequence_scores -->
+            <div class="loader-group">
+                <label for="file-score" class="tertiary"
+                    style="background:linear-gradient(135deg,#9c27b0,#7b1fa2)">Scores JSON</label>
+                <input type="file" id="file-score" accept=".json" />
+                <span class="loaded-dot" id="dot-score"></span>
+                <span class="fname" id="fname-score">Optional</span>
+            </div>
+        </div>
+        <div class="stats-bar" id="stats-bar" style="display:none">
+            <div class="stat">
+                <div class="stat-value" id="s-routes">0</div>
+                <div class="stat-label">Routes</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="s-stops">0</div>
+                <div class="stat-label">Stops</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="s-zones">0</div>
+                <div class="stat-label">Zones</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="s-pkgs">—</div>
+                <div class="stat-label">Packages</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Routes</h2>
+                <p>Click a route to view on map</p>
+            </div>
+            <div class="search-box">
+                <input type="text" id="search" placeholder="Search route ID or station…" />
+            </div>
+            <div class="route-list" id="route-list"></div>
+        </div>
+
+        <!-- Map area -->
+        <div style="position:relative;flex:1;overflow:hidden">
+            <div id="empty-state">
+                <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="2" />
+                    <path d="M20 32 L32 20 L44 32 L32 44 Z" stroke="currentColor" stroke-width="2" fill="none" />
+                    <circle cx="32" cy="32" r="4" fill="currentColor" />
+                </svg>
+                <p>Load a Route JSON file to begin</p>
+                <small>Supports new_route_data.json and route_data.json formats</small>
+            </div>
+
+            <div id="map"></div>
+
+            <!-- Controls -->
+            <div class="controls" id="controls" style="display:none">
+                <button class="ctrl-btn active" id="btn-zone">Zone colours</button>
+                <button class="ctrl-btn" id="btn-type">Stop types</button>
+                <button class="ctrl-btn" id="btn-scan">Scan status</button>
+                <button class="ctrl-btn active" id="btn-labels">Labels</button>
+                <button class="ctrl-btn active" id="btn-seqline">Seq line</button>
+                <button class="ctrl-btn" id="btn-analytics">📊 Analytics</button>
+                <button class="ctrl-btn" id="btn-fit">Fit view</button>
+            </div>
+
+            <!-- Legend -->
+            <div class="legend" id="legend" style="display:none">
+                <div class="legend-title" id="legend-title">Legend</div>
+                <div id="legend-body">
+                    <div class="legend-row">
+                        <div class="legend-dot" style="background:#ff5252"></div>Station
+                    </div>
+                    <div class="legend-row">
+                        <div class="legend-dot" style="background:#4fc3f7"></div>Dropoff (zone-coloured)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stop info panel -->
+            <div class="info-panel" id="info-panel">
+                <h3 id="ip-title">Stop Details</h3>
+                <div id="ip-body"></div>
+            </div>
+        </div>
+
+        <!-- Analytics panel -->
+        <div class="analytics-panel" id="analytics-panel">
+            <div class="analytics-inner">
+                <div class="analytics-header">
+                    <h2>Route Analytics</h2>
+                    <button class="analytics-close" id="analytics-close">✕</button>
+                </div>
+                <div id="analytics-body">
+                    <div style="color:#484f58;font-size:12px;text-align:center;margin-top:40px">Select a route to see
+                        analytics</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // ── Map setup ────────────────────────────────────────────────────
+        const map = L.map('map', { center: [39.5, -98.35], zoom: 4, zoomControl: true });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 20,
+        }).addTo(map);
+
+        // ── State ────────────────────────────────────────────────────────
+        let routeData = {};
+        let packageData = {};
+        let sequenceData = {};  // routeId → { actual: { stopId: seqNum } }
+        let scoreData = {};  // routeId → float
+        let currentRoute = null;
+        let colorMode = 'zone'; // 'zone' | 'type' | 'scan'
+        let showLabels = true;
+        let showSeqLine = true;
+        let analyticsOpen = false;
+        let layerGroup = L.layerGroup().addTo(map);
+
+        // Chart instances (to destroy before re-draw)
+        let charts = {};
+
+        // ── Zone colour palette ──────────────────────────────────────────
+        const ZONE_COLORS = [
+            '#ff9900', '#4fc3f7', '#a5d6a7', '#ce93d8', '#f48fb1',
+            '#80cbc4', '#ffcc80', '#ef9a9a', '#90caf9', '#bcaaa4',
+            '#b0bec5', '#dce775', '#ffab40', '#26c6da', '#ec407a',
+        ];
+        const zoneColorMap = {};
+        let zoneIdx = 0;
+        function getZoneColor(zid) {
+            if (!zid || zid === 'null' || zid === 'NaN') return '#606060';
+            if (!zoneColorMap[zid]) zoneColorMap[zid] = ZONE_COLORS[zoneIdx++ % ZONE_COLORS.length];
+            return zoneColorMap[zid];
+        }
+
+        // ── Scan status colour ───────────────────────────────────────────
+        function getScanColor(status) {
+            switch (status) {
+                case 'DELIVERED': return '#69f0ae';
+                case 'ATTEMPTED': return '#ffca28';
+                case 'REJECTED': return '#ef5350';
+                default: return '#8b949e';
+            }
+        }
+
+        // Get dominant scan status for a stop
+        function getStopScanStatus(routeId, stopId) {
+            const pkgs = packageData[routeId]?.[stopId];
+            if (!pkgs) return null;
+            const counts = {};
+            for (const p of Object.values(pkgs)) {
+                const s = p.scan_status || 'UNKNOWN';
+                counts[s] = (counts[s] || 0) + 1;
+            }
+            return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+        }
+
+        // ── Utility ─────────────────────────────────────────────────────
+        function shortId(routeId) {
+            const m = routeId.match(/RouteID_(.{8})/);
+            return m ? 'Route…' + m[1] : routeId.slice(0, 20);
+        }
+        function fmtCapacity(cm3) {
+            if (!cm3) return '—';
+            return (cm3 / 1000).toFixed(0) + ' L';
+        }
+        function scoreClass(score) {
+            if (!score) return '';
+            const s = score.toLowerCase();
+            if (s === 'high') return 'badge-high';
+            if (s === 'medium') return 'badge-medium';
+            if (s === 'low') return 'badge-low';
+            return '';
+        }
+
+        // ── Update legend ───────────────────────────────────────────────
+        function updateLegend() {
+            const title = document.getElementById('legend-title');
+            const body = document.getElementById('legend-body');
+            if (colorMode === 'scan') {
+                title.textContent = 'Scan Status';
+                body.innerHTML = `
+                <div class="legend-row"><div class="legend-dot" style="background:#ff5252"></div>Station</div>
+                <div class="legend-row"><div class="legend-dot" style="background:#69f0ae"></div>Delivered</div>
+                <div class="legend-row"><div class="legend-dot" style="background:#ffca28"></div>Attempted</div>
+                <div class="legend-row"><div class="legend-dot" style="background:#ef5350"></div>Rejected</div>
+                <div class="legend-row"><div class="legend-dot" style="background:#8b949e"></div>No data</div>`;
+            } else if (colorMode === 'type') {
+                title.textContent = 'Stop Type';
+                body.innerHTML = `
+                <div class="legend-row"><div class="legend-dot" style="background:#ff5252"></div>Station</div>
+                <div class="legend-row"><div class="legend-dot" style="background:#4fc3f7"></div>Dropoff</div>`;
+            } else {
+                title.textContent = 'Zone Colours';
+                body.innerHTML = `
+                <div class="legend-row"><div class="legend-dot" style="background:#ff5252"></div>Station</div>
+                <div class="legend-row"><div class="legend-dot" style="background:#4fc3f7"></div>Dropoff (zone-coloured)</div>`;
+            }
+        }
+
+        // ── Sequence colour gradient (blue→green→yellow→red) ────────────
+        function seqColor(idx, total) {
+            const t = total <= 1 ? 0 : idx / (total - 1);
+            // interpolate through blue(0) → cyan(0.33) → yellow(0.66) → red(1)
+            const stops = [
+                [0, [58, 110, 213]],
+                [0.33, [38, 198, 218]],
+                [0.66, [255, 202, 40]],
+                [1, [239, 83, 80]],
+            ];
+            let lo = stops[0], hi = stops[stops.length - 1];
+            for (let i = 0; i < stops.length - 1; i++) {
+                if (t >= stops[i][0] && t <= stops[i + 1][0]) { lo = stops[i]; hi = stops[i + 1]; break; }
+            }
+            const f = lo[0] === hi[0] ? 0 : (t - lo[0]) / (hi[0] - lo[0]);
+            const r = Math.round(lo[1][0] + f * (hi[1][0] - lo[1][0]));
+            const g = Math.round(lo[1][1] + f * (hi[1][1] - lo[1][1]));
+            const b = Math.round(lo[1][2] + f * (hi[1][2] - lo[1][2]));
+            return `rgb(${r},${g},${b})`;
+        }
+
+        // ── Render route on map ──────────────────────────────────────────
+        function renderRoute(routeId) {
+            layerGroup.clearLayers();
+            document.getElementById('info-panel').classList.remove('visible');
+
+            const route = routeData[routeId];
+            if (!route) return;
+
+            const stops = route.stops;
+            const bounds = [];
+
+            // Build ordered sequence if available
+            const seqMap = sequenceData[routeId]?.actual ?? {}; // stopId → seqNum
+            const hasSeq = Object.keys(seqMap).length > 0;
+            // Sort stops by sequence number for polyline
+            const orderedStops = hasSeq
+                ? Object.entries(seqMap)
+                    .sort((a, b) => a[1] - b[1])
+                    .map(([sid]) => sid)
+                : [];
+            const seqTotal = orderedStops.length;
+
+            // Draw sequence polyline beneath stops
+            if (showSeqLine && hasSeq) {
+                const lineCoords = orderedStops
+                    .map(sid => stops[sid])
+                    .filter(s => s?.lat != null)
+                    .map(s => [s.lat, s.lng]);
+                if (lineCoords.length > 1) {
+                    // Segmented coloured polyline
+                    for (let i = 0; i < lineCoords.length - 1; i++) {
+                        const segColor = seqColor(i, seqTotal);
+                        L.polyline([lineCoords[i], lineCoords[i + 1]], {
+                            color: segColor, weight: 2.5, opacity: 0.75,
+                        }).addTo(layerGroup);
+                    }
+                }
+            }
+
+            for (const [stopId, stop] of Object.entries(stops)) {
+                if (stop.lat == null || stop.lng == null) continue;
+                const isStation = stop.type === 'Station';
+                const seqNum = seqMap[stopId];
+                const seqIdx = seqNum != null ? orderedStops.indexOf(stopId) : -1;
+
+                let color;
+                if (isStation) {
+                    color = '#ff5252';
+                } else if (colorMode === 'zone') {
+                    color = getZoneColor(String(stop.zone_id));
+                } else if (colorMode === 'type') {
+                    color = '#4fc3f7';
+                } else { // scan
+                    const status = getStopScanStatus(routeId, stopId);
+                    color = status ? getScanColor(status) : '#8b949e';
+                }
+
+                const radius = isStation ? 12 : 7;
+                const zIndex = isStation ? 1000 : 500;
+
+                const circle = L.circleMarker([stop.lat, stop.lng], {
+                    radius,
+                    fillColor: color,
+                    color: isStation ? '#fff' : 'rgba(0,0,0,0.3)',
+                    weight: isStation ? 2 : 1,
+                    fillOpacity: 0.9,
+                    zIndexOffset: zIndex,
+                });
+
+                const seqTip = seqNum != null ? `<br>Seq #${seqNum}` : '';
+                circle.on('click', () => showInfo(stopId, stop, routeId, route));
+                circle.bindTooltip(`<b>${stopId}</b>${seqTip}<br>${stop.type}<br>${stop.zone_id ?? 'No zone'}`, {
+                    direction: 'top', offset: [0, -6], className: 'leaflet-tooltip-dark',
+                });
+                layerGroup.addLayer(circle);
+
+                if (showLabels) {
+                    const seqBadge = seqNum != null
+                        ? `<span style="background:${seqColor(seqIdx, seqTotal)};color:#000;border-radius:3px;padding:0 3px;margin-left:3px;font-weight:700">#${seqNum}</span>`
+                        : '';
+                    const labelHtml = isStation
+                        ? `<div style="font-size:9px;font-family:Inter,sans-serif;color:#fff;background:rgba(200,80,0,.85);padding:1px 5px;border-radius:3px;margin-top:15px;white-space:nowrap;font-weight:700;border:1px solid rgba(255,255,255,0.3)">${stopId}${seqBadge}</div>`
+                        : `<div style="font-size:8px;font-family:Inter,sans-serif;color:#e6edf3;background:rgba(0,0,0,.65);padding:1px 4px;border-radius:3px;margin-top:9px;white-space:nowrap">${stopId}${seqBadge}</div>`;
+                    const label = L.marker([stop.lat, stop.lng], {
+                        icon: L.divIcon({ className: '', html: labelHtml, iconAnchor: [0, 0] }),
+                        interactive: false,
+                        zIndexOffset: isStation ? 1200 : 600,
+                    });
+                    layerGroup.addLayer(label);
+                }
+
+                bounds.push([stop.lat, stop.lng]);
+            }
+
+            if (bounds.length) map.fitBounds(bounds, { padding: [40, 40] });
+            updateLegend();
+        }
+
+        // ── Stop info panel ──────────────────────────────────────────────
+        function showInfo(stopId, stop, routeId, route) {
+            document.getElementById('ip-title').textContent = `Stop: ${stopId}`;
+
+            let html = `
+            <div class="info-row"><span class="k">Route</span><span class="v">${shortId(routeId)}</span></div>
+            <div class="info-row"><span class="k">Station</span><span class="v">${route.station_code ?? '—'}</span></div>
+            <div class="info-row"><span class="k">Type</span><span class="v">${stop.type ?? '—'}</span></div>
+            <div class="info-row"><span class="k">Zone</span><span class="v">${stop.zone_id ?? 'None'}</span></div>
+            <div class="info-row"><span class="k">Lat/Lng</span><span class="v">${stop.lat?.toFixed(5)}, ${stop.lng?.toFixed(5)}</span></div>
+            <div class="info-row"><span class="k">Date</span><span class="v">${route.date_YYYY_MM_DD ?? '—'}</span></div>
+            <div class="info-row"><span class="k">Departure</span><span class="v">${route.departure_time_utc ?? '—'} UTC</span></div>`;
+
+            if (route.route_score) {
+                html += `<div class="info-row"><span class="k">Route Score</span><span class="v"><span class="badge ${scoreClass(route.route_score)}">${route.route_score}</span></span></div>`;
+            }
+            if (route.executor_capacity_cm3) {
+                html += `<div class="info-row"><span class="k">Capacity</span><span class="v">${fmtCapacity(route.executor_capacity_cm3)}</span></div>`;
+            }
+
+            // Sequence info
+            const seqMapInfo = sequenceData[routeId]?.actual ?? {};
+            const seqNum = seqMapInfo[stopId];
+            if (seqNum != null) {
+                html += `<div class="info-row"><span class="k">Visit Order</span><span class="v">#${seqNum} of ${Object.keys(seqMapInfo).length}</span></div>`;
+            }
+
+            // Sequence score
+            const routeScore = scoreData[routeId];
+            if (routeScore != null) {
+                const sc = routeScore.toFixed(4);
+                const scColor = routeScore < 0.7 ? '#69f0ae' : routeScore < 1.1 ? '#ffca28' : '#ef5350';
+                html += `<div class="info-row"><span class="k">Seq Score</span><span class="v" style="color:${scColor};font-weight:700">${sc}</span></div>`;
+            }
+
+            // Package details
+            const pkgs = packageData[routeId]?.[stopId];
+            if (pkgs) {
+                const pkgList = Object.entries(pkgs);
+                html += `<div class="pkg-section-title">📦 Packages (${pkgList.length})</div>`;
+                for (const [pkgId, pkg] of pkgList) {
+                    const status = pkg.scan_status ?? 'UNKNOWN';
+                    const statusKey = ['DELIVERED', 'ATTEMPTED', 'REJECTED'].includes(status) ? status : 'OTHER';
+                    const svcSec = pkg.planned_service_time_seconds != null ? pkg.planned_service_time_seconds.toFixed(0) + 's' : '—';
+                    const dim = pkg.dimensions;
+                    const dimStr = dim ? `${dim.width_cm}×${dim.height_cm}×${dim.depth_cm} cm` : '—';
+                    const twStart = pkg.time_window?.start_time_utc;
+                    const twEnd = pkg.time_window?.end_time_utc;
+                    const twStr = (twStart && twStart !== 'NaN' && twEnd && twEnd !== 'NaN')
+                        ? `${twStart} – ${twEnd}` : 'No window';
+
+                    html += `
+                <div class="pkg-card">
+                    <div class="pkg-id">${pkgId.slice(-18)}</div>
+                    <span class="scan-pill scan-${statusKey}">${status}</span>
+                    <div class="pkg-detail">⏱ ${svcSec} &nbsp;•&nbsp; 📐 ${dimStr}</div>
+                    <div class="pkg-detail" style="margin-top:2px">🕐 ${twStr}</div>
+                </div>`;
+                }
+            }
+
+            document.getElementById('ip-body').innerHTML = html;
+            document.getElementById('info-panel').classList.add('visible');
+        }
+
+        // ── Build route list ─────────────────────────────────────────────
+        function buildRouteList(filter = '') {
+            const list = document.getElementById('route-list');
+            list.innerHTML = '';
+            const lf = filter.toLowerCase();
+
+            for (const [routeId, route] of Object.entries(routeData)) {
+                const shortName = shortId(routeId);
+                const station = route.station_code ?? '';
+                if (lf && !routeId.toLowerCase().includes(lf) && !station.toLowerCase().includes(lf)) continue;
+
+                const stopCount = Object.keys(route.stops ?? {}).length;
+                const score = route.route_score;
+                const scoreBadge = score ? `<span class="badge ${scoreClass(score)}">${score}</span>` : '';
+                const capStr = route.executor_capacity_cm3 ? `${fmtCapacity(route.executor_capacity_cm3)}` : '';
+
+                // Sequence score badge
+                const seqScore = scoreData[routeId];
+                let seqScoreBadge = '';
+                if (seqScore != null) {
+                    const scColor = seqScore < 0.7 ? '#69f0ae' : seqScore < 1.1 ? '#ffca28' : '#ef5350';
+                    seqScoreBadge = `<span style="font-size:9px;font-weight:700;color:${scColor}">⚡${seqScore.toFixed(2)}</span>`;
+                }
+
+                const div = document.createElement('div');
+                div.className = 'route-item' + (routeId === currentRoute ? ' active' : '');
+                div.innerHTML = `
+                <div class="route-id">${shortName}</div>
+                <div class="route-meta">
+                    <span>${station}</span>
+                    <span>${route.date_YYYY_MM_DD ?? ''}</span>
+                    <span class="badge badge-stops">${stopCount} stops</span>
+                    ${scoreBadge}
+                    ${seqScoreBadge}
+                    ${capStr ? `<span style="color:#8b949e">${capStr}</span>` : ''}
+                </div>`;
+                div.addEventListener('click', () => {
+                    currentRoute = routeId;
+                    renderRoute(routeId);
+                    document.querySelectorAll('.route-item').forEach(el => el.classList.remove('active'));
+                    div.classList.add('active');
+                    if (analyticsOpen) renderAnalytics(routeId);
+                });
+                list.appendChild(div);
+            }
+        }
+
+        // ── Analytics panel ──────────────────────────────────────────────
+        function renderAnalytics(routeId) {
+            const body = document.getElementById('analytics-body');
+            const route = routeData[routeId];
+            if (!route) { body.innerHTML = '<div style="color:#484f58;font-size:12px;text-align:center;margin-top:40px">No data</div>'; return; }
+
+            // Destroy old charts
+            Object.values(charts).forEach(c => c.destroy());
+            charts = {};
+
+            const stops = route.stops ?? {};
+            const pkgsForRoute = packageData[routeId] ?? {};
+
+            // Aggregate package stats
+            const scanCounts = {};
+            const stopPkgCounts = {};
+            const serviceTimes = [];
+            const volumes = [];
+
+            for (const [stopId, stop] of Object.entries(stops)) {
+                const pkgs = pkgsForRoute[stopId] ?? {};
+                const pkgList = Object.values(pkgs);
+                stopPkgCounts[stopId] = pkgList.length;
+
+                for (const pkg of pkgList) {
+                    const s = pkg.scan_status ?? 'UNKNOWN';
+                    scanCounts[s] = (scanCounts[s] || 0) + 1;
+                    if (pkg.planned_service_time_seconds != null)
+                        serviceTimes.push(pkg.planned_service_time_seconds);
+                    if (pkg.dimensions) {
+                        const { depth_cm, height_cm, width_cm } = pkg.dimensions;
+                        if (depth_cm && height_cm && width_cm)
+                            volumes.push(depth_cm * height_cm * width_cm);
+                    }
+                }
+            }
+
+            const hasPkgs = Object.keys(pkgsForRoute).length > 0;
+
+            // Sequence & score data for this route
+            const seqMapA = sequenceData[routeId]?.actual ?? {};
+            const hasSeqData = Object.keys(seqMapA).length > 0;
+            const routeSeqScore = scoreData[routeId];
+            const seqScoreColor = routeSeqScore == null ? '#8b949e'
+                : routeSeqScore < 0.7 ? '#69f0ae' : routeSeqScore < 1.1 ? '#ffca28' : '#ef5350';
+
+            // Route info block
+            let infoHtml = `
+            <div class="route-info-block">
+                <div class="ri-row"><span class="ri-k">Station</span><span class="ri-v">${route.station_code ?? '—'}</span></div>
+                <div class="ri-row"><span class="ri-k">Date</span><span class="ri-v">${route.date_YYYY_MM_DD ?? '—'}</span></div>
+                <div class="ri-row"><span class="ri-k">Departure</span><span class="ri-v">${route.departure_time_utc ?? '—'} UTC</span></div>
+                <div class="ri-row"><span class="ri-k">Stops</span><span class="ri-v">${Object.keys(stops).length}</span></div>`;
+            if (route.route_score)
+                infoHtml += `<div class="ri-row"><span class="ri-k">Quality</span><span class="ri-v"><span class="badge ${scoreClass(route.route_score)}">${route.route_score}</span></span></div>`;
+            if (route.executor_capacity_cm3)
+                infoHtml += `<div class="ri-row"><span class="ri-k">Capacity</span><span class="ri-v">${fmtCapacity(route.executor_capacity_cm3)}</span></div>`;
+            if (routeSeqScore != null) {
+                infoHtml += `<div class="ri-row"><span class="ri-k">Seq Score</span><span class="ri-v" style="color:${seqScoreColor};font-weight:700">${routeSeqScore.toFixed(4)}</span></div>`;
+                // Score meter bar
+                const pct = Math.min(100, (routeSeqScore / 2) * 100);
+                infoHtml += `
+                <div style="margin:6px 0 2px;font-size:9px;color:#8b949e">Score meter (0 best → 2 worst)</div>
+                <div style="height:6px;background:#21313f;border-radius:3px;overflow:hidden;margin-bottom:4px">
+                    <div style="height:100%;width:${pct}%;background:${seqScoreColor};border-radius:3px;transition:width .4s"></div>
+                </div>`;
+            }
+            if (hasSeqData)
+                infoHtml += `<div class="ri-row"><span class="ri-k">Sequenced Stops</span><span class="ri-v">${Object.keys(seqMapA).length}</span></div>`;
+            if (hasPkgs)
+                infoHtml += `<div class="ri-row"><span class="ri-k">Total Packages</span><span class="ri-v">${Object.values(stopPkgCounts).reduce((a, b) => a + b, 0)}</span></div>`;
+            infoHtml += `</div>`;
+
+            // Sequence order chart placeholder
+            let seqChartHtml = '';
+            if (hasSeqData) {
+                seqChartHtml = `
+                <div class="chart-section">
+                    <h3>Stop Visit Order</h3>
+                    <div class="chart-wrap tall"><canvas id="chart-seqorder"></canvas></div>
+                </div>`;
+            }
+
+            let chartsHtml = '';
+
+            if (hasPkgs) {
+                chartsHtml += `
+            <div class="chart-section">
+                <h3>Scan Status</h3>
+                <div class="chart-wrap"><canvas id="chart-scan"></canvas></div>
+            </div>
+            <div class="chart-section">
+                <h3>Packages per Stop (top 15)</h3>
+                <div class="chart-wrap tall"><canvas id="chart-perstop"></canvas></div>
+            </div>
+            <div class="chart-section">
+                <h3>Service Time Distribution (s)</h3>
+                <div class="chart-wrap"><canvas id="chart-svctime"></canvas></div>
+            </div>
+            <div class="chart-section">
+                <h3>Package Volume Distribution (cm³)</h3>
+                <div class="chart-wrap"><canvas id="chart-volume"></canvas></div>
+            </div>`;
+            } else {
+                chartsHtml = `<div style="color:#484f58;font-size:11px;text-align:center;padding:20px 0">Load package_data.json<br>to see package analytics</div>`;
+            }
+
+            body.innerHTML = infoHtml + seqChartHtml + chartsHtml;
+
+            // Render sequence order chart
+            if (hasSeqData) {
+                const orderedEntries = Object.entries(seqMapA).sort((a, b) => a[1] - b[1]);
+                const seqTotal2 = orderedEntries.length;
+                const seqLabels = orderedEntries.map(([sid]) => sid);
+                const seqColors2 = orderedEntries.map(([, _], i) => seqColor(i, seqTotal2) + 'cc');
+                charts.seqorder = new Chart(document.getElementById('chart-seqorder'), {
+                    type: 'bar',
+                    data: {
+                        labels: seqLabels,
+                        datasets: [{
+                            label: 'Visit#',
+                            data: orderedEntries.map(([, n]) => n),
+                            backgroundColor: seqColors2,
+                            borderRadius: 2,
+                        }]
+                    },
+                    options: {
+                        plugins: { legend: { display: false } },
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { ticks: { color: '#8b949e', font: { size: 7 }, maxRotation: 60 }, grid: { color: '#21313f' } },
+                            y: { ticks: { color: '#8b949e', font: { size: 9 } }, grid: { color: '#21313f' }, title: { display: true, text: 'Visit #', color: '#8b949e', font: { size: 9 } } },
+                        }
+                    }
+                });
+            }
+
+            if (!hasPkgs) return;
+
+            const chartDefaults = {
+                plugins: { legend: { labels: { color: '#8b949e', font: { size: 10, family: 'Inter' } } } },
+                scales: {
+                    x: { ticks: { color: '#8b949e', font: { size: 9 } }, grid: { color: '#21313f' } },
+                    y: { ticks: { color: '#8b949e', font: { size: 9 } }, grid: { color: '#21313f' } },
+                },
+            };
+
+            // 1. Scan status donut
+            const scanLabels = Object.keys(scanCounts);
+            const scanColors = scanLabels.map(l => {
+                if (l === 'DELIVERED') return '#69f0ae';
+                if (l === 'ATTEMPTED') return '#ffca28';
+                if (l === 'REJECTED') return '#ef5350';
+                return '#8b949e';
+            });
+            charts.scan = new Chart(document.getElementById('chart-scan'), {
+                type: 'doughnut',
+                data: {
+                    labels: scanLabels,
+                    datasets: [{ data: scanLabels.map(l => scanCounts[l]), backgroundColor: scanColors, borderWidth: 0 }]
+                },
+                options: {
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#8b949e', font: { size: 10, family: 'Inter' }, padding: 8 } }
+                    },
+                    cutout: '60%',
+                    maintainAspectRatio: false,
+                }
+            });
+
+            // 2. Packages per stop (top 15 by count)
+            const sortedStops = Object.entries(stopPkgCounts)
+                .filter(([, c]) => c > 0)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 15);
+            charts.perstop = new Chart(document.getElementById('chart-perstop'), {
+                type: 'bar',
+                data: {
+                    labels: sortedStops.map(([id]) => id),
+                    datasets: [{
+                        label: 'Packages',
+                        data: sortedStops.map(([, c]) => c),
+                        backgroundColor: '#4fc3f7cc',
+                        borderRadius: 3,
+                    }]
+                },
+                options: {
+                    ...chartDefaults,
+                    plugins: { legend: { display: false } },
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { color: '#8b949e', font: { size: 8 } }, grid: { color: '#21313f' } },
+                        y: { ticks: { color: '#8b949e', font: { size: 9 } }, grid: { color: '#21313f' } },
+                    }
+                }
+            });
+
+            // 3. Service time histogram
+            function histogram(values, bins) {
+                if (!values.length) return { labels: [], counts: [] };
+                const min = Math.min(...values), max = Math.max(...values);
+                const step = (max - min) / bins || 1;
+                const counts = Array(bins).fill(0);
+                const labels = Array.from({ length: bins }, (_, i) => `${(min + i * step).toFixed(0)}–${(min + (i + 1) * step).toFixed(0)}`);
+                for (const v of values) {
+                    const b = Math.min(Math.floor((v - min) / step), bins - 1);
+                    counts[b]++;
+                }
+                return { labels, counts };
+            }
+            const svcHist = histogram(serviceTimes, 10);
+            charts.svctime = new Chart(document.getElementById('chart-svctime'), {
+                type: 'bar',
+                data: {
+                    labels: svcHist.labels,
+                    datasets: [{ label: 'Count', data: svcHist.counts, backgroundColor: '#ce93d8aa', borderRadius: 3 }]
+                },
+                options: {
+                    ...chartDefaults,
+                    plugins: { legend: { display: false } },
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { color: '#8b949e', font: { size: 8 }, maxRotation: 45 }, grid: { color: '#21313f' } },
+                        y: { ticks: { color: '#8b949e', font: { size: 9 } }, grid: { color: '#21313f' } },
+                    }
+                }
+            });
+
+            // 4. Volume histogram
+            const volHist = histogram(volumes, 10);
+            charts.volume = new Chart(document.getElementById('chart-volume'), {
+                type: 'bar',
+                data: {
+                    labels: volHist.labels,
+                    datasets: [{ label: 'Count', data: volHist.counts, backgroundColor: '#ffab40aa', borderRadius: 3 }]
+                },
+                options: {
+                    ...chartDefaults,
+                    plugins: { legend: { display: false } },
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { color: '#8b949e', font: { size: 8 }, maxRotation: 45 }, grid: { color: '#21313f' } },
+                        y: { ticks: { color: '#8b949e', font: { size: 9 } }, grid: { color: '#21313f' } },
+                    }
+                }
+            });
+        }
+
+        // ── Load route data ──────────────────────────────────────────────
+        function loadRouteData(text, filename) {
+            try {
+                const sanitized = text.replace(/:\s*NaN\b/g, ': null');
+                routeData = JSON.parse(sanitized);
+            } catch (e) { alert('Failed to parse route JSON: ' + e.message); return; }
+
+            document.getElementById('fname-route').textContent = filename;
+            document.getElementById('dot-route').classList.add('active');
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('controls').style.display = 'flex';
+            document.getElementById('legend').style.display = 'block';
+            document.getElementById('stats-bar').style.display = 'flex';
+
+            const routeIds = Object.keys(routeData);
+            let totalStops = 0;
+            const zones = new Set();
+            for (const r of Object.values(routeData)) {
+                for (const s of Object.values(r.stops ?? {})) {
+                    totalStops++;
+                    if (s.zone_id) zones.add(s.zone_id);
+                }
+            }
+            document.getElementById('s-routes').textContent = routeIds.length;
+            document.getElementById('s-stops').textContent = totalStops;
+            document.getElementById('s-zones').textContent = zones.size;
+
+            buildRouteList();
+            if (routeIds.length > 0) {
+                currentRoute = routeIds[0];
+                renderRoute(currentRoute);
+                document.querySelector('.route-item')?.classList.add('active');
+            }
+        }
+
+        // ── Load package data ────────────────────────────────────────────
+        function loadPackageData(text, filename) {
+            try {
+                const sanitized = text.replace(/:\s*NaN\b/g, ': null');
+                packageData = JSON.parse(sanitized);
+            } catch (e) { alert('Failed to parse package JSON: ' + e.message); return; }
+
+            document.getElementById('fname-pkg').textContent = filename;
+            document.getElementById('dot-pkg').classList.add('active');
+
+            // Count total packages
+            let total = 0;
+            for (const r of Object.values(packageData))
+                for (const stops of Object.values(r))
+                    total += Object.keys(stops).length;
+            document.getElementById('s-pkgs').textContent = total.toLocaleString();
+
+            // Re-render current route if visible
+            if (currentRoute) {
+                renderRoute(currentRoute);
+                if (analyticsOpen) renderAnalytics(currentRoute);
+            }
+            buildRouteList();
+        }
+
+        // ── File inputs ──────────────────────────────────────────────────
+        document.getElementById('file-route').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => loadRouteData(ev.target.result, file.name);
+            reader.readAsText(file);
+        });
+        document.getElementById('file-pkg').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => loadPackageData(ev.target.result, file.name);
+            reader.readAsText(file);
+        });
+        document.getElementById('file-seq').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try { sequenceData = JSON.parse(ev.target.result); }
+                catch (err) { alert('Failed to parse sequences: ' + err.message); return; }
+                document.getElementById('fname-seq').textContent = file.name;
+                document.getElementById('dot-seq').classList.add('active');
+                if (currentRoute) { renderRoute(currentRoute); if (analyticsOpen) renderAnalytics(currentRoute); }
+                buildRouteList();
+            };
+            reader.readAsText(file);
+        });
+        document.getElementById('file-score').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try { scoreData = JSON.parse(ev.target.result); }
+                catch (err) { alert('Failed to parse scores: ' + err.message); return; }
+                document.getElementById('fname-score').textContent = file.name;
+                document.getElementById('dot-score').classList.add('active');
+                if (currentRoute) { if (analyticsOpen) renderAnalytics(currentRoute); }
+                buildRouteList();
+            };
+            reader.readAsText(file);
+        });
+
+        // ── Drag & drop ──────────────────────────────────────────────────
+        document.addEventListener('dragenter', () => document.body.classList.add('dragging'));
+        document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('dragging'); });
+        document.addEventListener('dragover', (e) => e.preventDefault());
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            document.body.classList.remove('dragging');
+            const file = e.dataTransfer?.files[0]; if (!file) return;
+            const name = file.name.toLowerCase();
+            const reader = new FileReader();
+            if (name.includes('package')) {
+                reader.onload = (ev) => loadPackageData(ev.target.result, file.name);
+            } else if (name.includes('sequence') && !name.includes('score') && !name.includes('invalid')) {
+                reader.onload = (ev) => { sequenceData = JSON.parse(ev.target.result); if (currentRoute) renderRoute(currentRoute); };
+            } else if (name.includes('score') || name.includes('invalid')) {
+                reader.onload = (ev) => { scoreData = JSON.parse(ev.target.result); buildRouteList(); if (analyticsOpen && currentRoute) renderAnalytics(currentRoute); };
+            } else {
+                reader.onload = (ev) => loadRouteData(ev.target.result, file.name);
+            }
+            reader.readAsText(file);
+        });
+
+        // ── Controls ─────────────────────────────────────────────────────
+        function setColorMode(mode) {
+            colorMode = mode;
+            ['btn-zone', 'btn-type', 'btn-scan'].forEach(id => document.getElementById(id).classList.remove('active'));
+            document.getElementById(`btn-${mode === 'zone' ? 'zone' : mode === 'type' ? 'type' : 'scan'}`).classList.add('active');
+            if (currentRoute) renderRoute(currentRoute);
+        }
+        document.getElementById('btn-zone').addEventListener('click', () => setColorMode('zone'));
+        document.getElementById('btn-type').addEventListener('click', () => setColorMode('type'));
+        document.getElementById('btn-scan').addEventListener('click', () => setColorMode('scan'));
+
+        document.getElementById('btn-labels').addEventListener('click', () => {
+            showLabels = !showLabels;
+            document.getElementById('btn-labels').classList.toggle('active', showLabels);
+            if (currentRoute) renderRoute(currentRoute);
+        });
+        document.getElementById('btn-seqline').addEventListener('click', () => {
+            showSeqLine = !showSeqLine;
+            document.getElementById('btn-seqline').classList.toggle('active', showSeqLine);
+            if (currentRoute) renderRoute(currentRoute);
+        });
+
+        document.getElementById('btn-analytics').addEventListener('click', () => {
+            analyticsOpen = !analyticsOpen;
+            document.getElementById('analytics-panel').classList.toggle('open', analyticsOpen);
+            document.getElementById('btn-analytics').classList.toggle('active', analyticsOpen);
+            if (analyticsOpen && currentRoute) renderAnalytics(currentRoute);
+        });
+
+        document.getElementById('analytics-close').addEventListener('click', () => {
+            analyticsOpen = false;
+            document.getElementById('analytics-panel').classList.remove('open');
+            document.getElementById('btn-analytics').classList.remove('active');
+        });
+
+        document.getElementById('btn-fit').addEventListener('click', () => {
+            if (currentRoute) renderRoute(currentRoute);
+        });
+
+        // ── Search ───────────────────────────────────────────────────────
+        document.getElementById('search').addEventListener('input', (e) => buildRouteList(e.target.value));
+
+        // ── Leaflet tooltip dark style ────────────────────────────────────
+        const style = document.createElement('style');
+        style.textContent = `
+        .leaflet-tooltip-dark {
+            background: rgba(22,27,34,.95); border: 1px solid #21313f; color: #e6edf3;
+            font-family: Inter, sans-serif; font-size: 11px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.4); border-radius: 6px; padding: 5px 8px;
+        }
+        .leaflet-tooltip-dark::before { border-top-color: #21313f !important; }
+    `;
+        document.head.appendChild(style);
+    </script>
+</body>
+
+</html>
